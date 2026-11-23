@@ -110,7 +110,7 @@ my_theme <- theme_bw(base_size = 14) +
 
 # 1.1) Dados pesqueiros
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
-df <- readRDS("Dados/fisheries_covars.rds")
+df <- readRDS("Dados/fisheries.rds")
 str(df)
 
 
@@ -259,7 +259,6 @@ dfs_f <- extract_env_dynamic(points_sf = dfs_f, # dados pesqueiros espacializado
                              year_map = year_mapping)
 
 
-
 ### Extraindo dados para nppv (produtividade primária); variável dinâmica
 dfs_f <- extract_env_dynamic(points_sf = dfs_f, # dados pesqueiros espacializados
                              env_raster = vbio2, # camada ambiental (raster)
@@ -274,7 +273,7 @@ dfs_f$bathy  <- terra::extract(batimetria2r, dfs_f)[, 2]
 
 ### To see the progress...
 head(as.data.frame(dfs_f))
-colnames(dfs_f)[22:26] <- c("temperatura", "altura_mar", "camada_mistura", "prod_primaria", "batimetria") # Renomeando as variáveis
+colnames(dfs_f)[23:27] <- c("temperatura", "altura_mar", "camada_mistura", "prod_primaria", "batimetria") # Renomeando as variáveis
 
 
 
@@ -385,7 +384,7 @@ points(coords, col = 'red', pch = 19, cex = 0.5 )
 
 years <- as.numeric(unique(dfs_lea$Year)) # Anos (índices numéricos)
 dft <- expand.grid(Month = 1:12, Year = years) # expand.grid() cria todas as combinações entre os fatores (mês, ano)
-dft$time <- seq_len(nrow(dft)) # Índices da janela temporal (1-24)
+dft$time <- seq_len(nrow(dft)) # Índices da janela temporal (1-12)
 nt <- nrow(dft) # nº total de passos de tempo (inclui meses sem dados)
 
 dfs_lea$time <- dft$time[match(paste(dfs_lea$Year, as.numeric(as.character(dfs_lea$Month))),
