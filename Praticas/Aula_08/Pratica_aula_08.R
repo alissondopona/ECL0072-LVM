@@ -342,8 +342,8 @@ coords <- as.data.frame(st_coordinates(dfs_lea))
 
 # 5.3) Definindo o mesh
 #~~~~~~~~~~~~~~~~~~~~~~
-max.edge <- diff(range(coords[,1]))/(3*5)
-bound.outer <- diff(range(coords[,1]))/5
+bound.outer <- diff(range(coords[,1]))/5 # Chute inicial: a correlação espacial se estende por cerca de 1/5 da largura do domínio.
+max.edge <- diff(range(coords[,1]))/(3*5) # = bound.outer / 3; Define que comprimento máximo da aresta dos triângulos é 1/3 do alcance espacial presumido
 
 sw_oceant <- st_transform(sw_ocean, crs = CRS_lea) # Reprojetando o shp da área de estudo
 
@@ -760,6 +760,7 @@ mod4b <- inla(form_4b,
                                      dic = T, waic = T, cpo = T))
 
 
+save.image("~/Downloads/sp-temp_res.RData")
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1086,6 +1087,7 @@ ggplot() +
 
 ### 9.2.4) Mapa da abundância média (média/mediana de todos os meses)
 r_median_anual <- mean(r_median)
+
 #r_mean_anual <- mean(r_mean)
 
 
@@ -1101,6 +1103,7 @@ ggplot() +
 
 # ggplot() +
 #   geom_spatraster(data = r_median - r_median_anual) +
+#   facet_wrap(~lyr, ncol = 4) +
 #   geom_sf(data = sao, fill = 'gray20', color = "white", linewidth = 0.3) +
 #   fishualize::scale_fill_fish(option = "Hypsypops_rubicundus") +
 #   my_theme +
@@ -1152,5 +1155,78 @@ mygif
 gganimate::anim_save(filename = "~/Downloads/sp-distribution.gif",
                      animation = mygif,
                      path = "Resultados")
+
+
+
+
+# 9.3) EXTRA: mapas dos efeitos espaciais
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+sp_re <- best_model$summary.random$spatial # Extraindo o campo latente nos nós do mesh
+sp_df <- data.frame(time = rep(1:nt, each = nmesh),
+                    node = rep(1:nmesh, times = nt),
+                    mean = sp_re$mean,
+                    sd   = sp_re$sd,
+                    q025 = sp_re$`0.025quant`,
+                    q50  = sp_re$`0.5quant`,
+                    q975 = sp_re$`0.975quant`) # data frame das predições do efeito espacial
+
+## Modelos com campo comum (0, 1, 2): o mesmo campo vale para todos os meses
+if (nt == 1) {
+  sp_df <- sp_df[rep(1:nmesh, times = nt), ]
+  sp_df$time <- rep(1:nt, each = nmesh)
+}
+
+
+xy_nodes <- st_coordinates(mesh.points_wgs)
+sp_df$X <- xy_nodes[sp_df$node, 1]
+sp_df$Y <- xy_nodes[sp_df$node, 2]
+
+
+# Funçãozinha para interpolar a variável para todos os meses
+make_raster_stack <- function(df, var) {
+  layers <- lapply(1:nt, function(j) {
+    tmp <- df[df$time == j, ]
+    ir  <- akima::interp(x = tmp$X, y = tmp$Y, z = tmp[[var]], xo = xo, yo = yo)
+    r   <- rast(ir)
+    crs(r) <- "EPSG:4326"
+    r <- mask(crop(r, sw_ocean), sw_ocean)
+    names(r) <- tlab[j]
+    r
+  })
+  rast(layers)
+}
+
+r_sp_mean <- make_raster_stack(sp_df, "mean") # campo (média posterior)
+r_sp_sd   <- make_raster_stack(sp_df, "sd") # incerteza do campo
+
+
+# Go for the plot...
+lim <- max(abs(unlist(global(r_sp_mean, "range", na.rm = TRUE)))) # Garante mesma escala entre meses diferentes - logo, comparabilidade
+
+
+## Mapa do efeito espacial médio
+ggplot() +
+  geom_spatraster(data = r_sp_mean) +
+  facet_wrap(~lyr, ncol = 4) +
+  geom_sf(data = sao, fill = "gray20", color = "white", linewidth = 0.3) +
+  scale_fill_distiller(palette = "RdBu", direction = -1,
+                       limits = c(-lim, lim), name = "log(W(s,t))") +
+  my_theme +
+  coord_sf(xlim = c(ext_raster[1], ext_raster[2]),
+           ylim = c(ext_raster[3], ext_raster[4]),
+           expand = FALSE)
+
+
+## Mapa da incerteza em torno do efeito espacial 
+ggplot() +
+  geom_spatraster(data = r_sp_sd) +
+  facet_wrap(~lyr, ncol = 4) +
+  geom_sf(data = sao, fill = "gray20", color = "white", linewidth = 0.3) +
+  scale_fill_distiller(palette = "RdBu", direction = -1, name = "DP") +
+  my_theme +
+  coord_sf(xlim = c(ext_raster[1], ext_raster[2]),
+           ylim = c(ext_raster[3], ext_raster[4]),
+           expand = FALSE)
 
 
